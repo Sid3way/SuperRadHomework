@@ -10,11 +10,8 @@ import akka.actor.Actor
 class PokemonBase(PokemonStats: PokemonStats) extends Actor {
   val Stats = PokemonStats
 
-  def MyMessageHandler(): GetStatsResponse =
-    return new GetStatsResponse(Stats)
-
   override def receive: Receive = {
     case GetStatsRequest() =>
-      MyMessageHandler()
+      sender ! GetStatsResponse(Stats)
   }
 }

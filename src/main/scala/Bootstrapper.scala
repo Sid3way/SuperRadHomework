@@ -10,10 +10,10 @@ object Bootstrapper extends App {
 
   def Initialize(): Unit ={
     // Do stuff
-    val wateryThing = new PokemonBase(new PokemonStats("Water"))
+    /*val wateryThing = new PokemonBase(new PokemonStats("Water"))
     println("I'm alive and of type " + wateryThing.Stats.Type)
     val fireThing = new PokemonBase(new PokemonStats("Fire"))
-    println("I'm alive and of type " + fireThing .Stats.Type)
+    println("I'm alive and of type " + fireThing .Stats.Type)*/
   }
 }
 

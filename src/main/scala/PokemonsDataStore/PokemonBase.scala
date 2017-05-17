@@ -11,7 +11,7 @@ class PokemonBase(PokemonStats: PokemonStats) extends Actor {
   val Stats = PokemonStats
 
   override def receive: Receive = {
-    case GetStatsRequest() =>
-      sender ! GetStatsResponse(Stats)
+    case request : GetStatsRequest =>
+      sender ! GetStatsResponse(request, Stats)
   }
 }

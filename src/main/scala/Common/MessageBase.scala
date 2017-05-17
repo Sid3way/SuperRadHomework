@@ -13,7 +13,9 @@ trait MessageBase {
 // Requests
 abstract class RequestBase() extends MessageBase
 case class GetStatsRequest() extends RequestBase
+case class FetchPokemonByIdRequest(id : Int) extends RequestBase
 
 // Responses
 abstract class ResponseBase(requestBase: RequestBase) extends MessageBase
-case class GetStatsResponse(PokemonStats : PokemonStats) extends MessageBase
+case class GetStatsResponse(requestBase: RequestBase, PokemonStats : PokemonStats) extends ResponseBase(requestBase: RequestBase)
+case class FetchPokemonByIdResponse(requestBase: RequestBase, result : String) extends ResponseBase(requestBase: RequestBase)

@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/SuperRadHomework.iml" filepath="$PROJECT_DIR$/SuperRadHomework.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/superradhomework.iml" filepath="$PROJECT_DIR$/.idea/modules/superradhomework.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/superradhomework-build.iml" filepath="$PROJECT_DIR$/.idea/modules/superradhomework-build.iml" />
     </modules>
   </component>
 </project>

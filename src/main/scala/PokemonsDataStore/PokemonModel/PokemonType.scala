@@ -1,4 +1,4 @@
-package PokemonsDataStore.PokemonTraits
+package PokemonsDataStore.PokemonModel
 
 /**
   * Created by damie on 16/05/2017.

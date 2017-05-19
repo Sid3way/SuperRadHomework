@@ -1,7 +1,7 @@
 import Common._
 import PokeApiRequester.PokeApiClient
 import PokemonsDataStore.{Pokedex, PokemonBase}
-import PokemonsDataStore.PokemonTraits.PokemonStats
+import PokemonsDataStore.PokemonModel.PokemonStats
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 
 /**

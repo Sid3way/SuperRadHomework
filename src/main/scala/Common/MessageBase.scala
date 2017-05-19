@@ -1,6 +1,6 @@
 package Common
 
-import PokemonsDataStore.PokemonTraits.PokemonStats
+import PokemonsDataStore.PokemonModel.PokemonStats
 
 /**
   * Created by damie on 15/05/2017.

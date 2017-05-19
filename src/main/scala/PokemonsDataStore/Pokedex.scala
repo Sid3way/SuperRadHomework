@@ -1,7 +1,7 @@
 package PokemonsDataStore
 
 import Common.GetStatsRequest
-import PokemonsDataStore.PokemonTraits.PokemonStats
+import PokemonsDataStore.PokemonModel.PokemonStats
 import akka.actor.{Actor, Props}
 
 /**

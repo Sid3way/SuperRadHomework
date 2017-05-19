@@ -12,6 +12,8 @@ class PokemonBase(PokemonStats: PokemonStats) extends Actor {
 
   override def receive: Receive = {
     case request : GetStatsRequest =>
+      println("Received get stats request")
       sender ! GetStatsResponse(request, Stats)
+    case _ => println("wtf")
   }
 }

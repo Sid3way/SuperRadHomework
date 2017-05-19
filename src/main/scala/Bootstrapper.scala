@@ -1,6 +1,6 @@
-import Common.{FetchPokemonByIdRequest, GetStatsRequest, GetStatsResponse, RequestBase}
+import Common._
 import PokeApiRequester.PokeApiClient
-import PokemonsDataStore.PokemonBase
+import PokemonsDataStore.{Pokedex, PokemonBase}
 import PokemonsDataStore.PokemonTraits.PokemonStats
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 
@@ -14,13 +14,12 @@ object Bootstrapper extends App {
   def Initialize(): Unit ={
     // Do stuff
     val actorSystem = ActorSystem("Starburst")
-    val waterActor = actorSystem.actorOf(Props(new PokemonBase(new PokemonStats("Water"))), name = "WateryThing")
-    val fireActor = actorSystem.actorOf(Props(new PokemonBase(new PokemonStats("Fire"))), name = "FieryThing")
+    val pokedex = actorSystem.actorOf(Props[Pokedex], name="pokedex")
     val pokeApiClient = actorSystem.actorOf(Props[PokeApiClient], name = "pokeApiClient")
     val consoleWriter = actorSystem.actorOf(Props[ConsoleWriter], name = "consoleWriter")
 
-    waterActor.tell(GetStatsRequest(), consoleWriter)
-    fireActor.tell(GetStatsRequest(), consoleWriter)
+    pokedex.tell(GetStatsRequest("pikachu"), consoleWriter)
+    pokedex.tell(GetStatsRequest("cha*"), consoleWriter)
     pokeApiClient.tell(FetchPokemonByIdRequest(13), consoleWriter)
 
   }

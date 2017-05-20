@@ -1,6 +1,6 @@
 package PokeApiRequester
 
-import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse}
+import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse, RequestStatus}
 import akka.actor.{Actor, ActorRef, Stash}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -8,7 +8,6 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 
 import scala.concurrent.ExecutionContextExecutor
 import akka.pattern._
-
 import HttpMethods._
 import PokemonsDataStore.PokemonModel.PokemonModel
 import play.api.libs.json._
@@ -44,10 +43,15 @@ class PokeApiClient extends Actor with Stash{
       val json : JsValue = Json.parse(body)
       val pokeResult : JsResult[PokemonModel] = json.validate[PokemonModel]
       pokeResult match {
-        case success : JsSuccess[PokemonModel] => println("json parsed successfuly ! Contains: " + success.get)
-        case fail : JsError => println("couldn't parse json retrieved from api. Error: " + JsError.toJson(fail).toString())
+        case success : JsSuccess[PokemonModel] =>
+          val pokemonModel = success.get
+          println("json parsed successfuly ! Contains: " + pokemonModel)
+          lastSender.tell(FetchPokemonByIdResponse(lastRequest, pokemonModel, RequestStatus.Success), self)
+        case fail : JsError =>
+          println("couldn't parse json retrieved from api. Error: " + JsError.toJson(fail).toString())
+          lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+        case _ => println("dunno, lol")
       }})
-      lastSender.tell(FetchPokemonByIdResponse(lastRequest, "toBeReplaced"), self)
       unstashAll()
       context.unbecome()
     }
@@ -59,7 +63,8 @@ class PokeApiClient extends Actor with Stash{
       println("Error while fetching entities in pokeApi :'(")
       unstashAll()
       context.unbecome()
-    case _ => stash()
+    case _ =>
+      stash()
   }
 
   override def receive: Receive = {

@@ -1,7 +1,7 @@
 package PokeApiRequester
 
 import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse, RequestStatus}
-import akka.actor.{Actor, ActorRef, Stash}
+import akka.actor.{Actor, ActorRef, PoisonPill, Props, Stash}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
@@ -17,8 +17,16 @@ import scala.util.Failure
 /**
   * Created by Damie on 17/05/2017.
   */
-class PokeApiClient extends Actor with Stash{
+class PokeApiClient extends Actor {
 
+  override def receive: Receive = {
+    case request : FetchPokemonByIdRequest =>
+      println("Received request, creating a worker to handle it")
+      context.actorOf(Props[PokeApiWorker]).forward(request)
+  }
+}
+
+class PokeApiWorker extends Actor {
   final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
   implicit val executionContext: ExecutionContextExecutor = context.system.dispatcher
 
@@ -28,13 +36,17 @@ class PokeApiClient extends Actor with Stash{
   var lastRequest = FetchPokemonByIdRequest(0)
 
   def RequestApi(request : FetchPokemonByIdRequest): Unit = {
+    println("Preparing to send request to API")
     lastSender = sender
     lastRequest = request
+    println("Changing context")
     context.become(waitingForResponse)
     val pokeApiUrl = "http://pokeapi.co/api/v2/pokemon/" + request.id + "/"
+    println("Sending request")
     var futureResult = http.singleRequest(HttpRequest(GET, uri = pokeApiUrl))
+    println("Piping result to self")
     futureResult pipeTo self
-
+    println("Done")
   }
 
   def onResultReceived(entity: ResponseEntity) : Unit = {
@@ -52,24 +64,26 @@ class PokeApiClient extends Actor with Stash{
           lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
         case _ => println("dunno, lol")
       }})
-      unstashAll()
-      context.unbecome()
-    }
+  }
 
   def waitingForResponse : Receive = {
     case HttpResponse(StatusCodes.OK, headers, entity, _) =>
+      println("Received ok response")
       onResultReceived(entity)
+      self ! PoisonPill
     case Failure(_) =>
       println("Error while fetching entities in pokeApi :'(")
-      unstashAll()
-      context.unbecome()
+      lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+      self ! PoisonPill
     case _ =>
-      stash()
+      println("Dude what")
+      lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+      self ! PoisonPill
   }
 
   override def receive: Receive = {
     case request : FetchPokemonByIdRequest =>
       RequestApi(request)
   }
-}
 
+}

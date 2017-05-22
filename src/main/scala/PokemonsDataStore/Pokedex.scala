@@ -18,13 +18,13 @@ class Pokedex(pokeApiClient : ActorRef) extends Actor with Stash{
         pokemonsLeftToInit -= 1
         context.actorOf(Props(new PokemonBase(response.result)), response.result.name)
         if (pokemonsLeftToInit > 0)
-          sender().tell(FetchPokemonByIdRequest(pokemonsLeftToInit), self)
+          pokeApiClient.tell(FetchPokemonByIdRequest(pokemonsLeftToInit), self)
         else
           unstashAll()
           context.become(receive)
       case FetchPokemonByIdResponse(request, _, RequestStatus.Error) =>
         // Trying again. Not the best way to handle a failure, only serves as fail-safe for now
-        sender().tell(request, self)
+        pokeApiClient.tell(request, self)
     }
   }
 

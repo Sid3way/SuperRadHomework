@@ -12,7 +12,7 @@ import HttpMethods._
 import PokemonsDataStore.PokemonModel.PokemonModel
 import play.api.libs.json._
 
-import scala.util.Failure
+import scala.util.{Failure, Success}
 
 /**
   * Created by Damie on 17/05/2017.
@@ -55,31 +55,46 @@ class PokeApiWorker extends Actor {
       val json : JsValue = Json.parse(body)
       val pokeResult : JsResult[PokemonModel] = json.validate[PokemonModel]
       pokeResult match {
-        case success : JsSuccess[PokemonModel] =>
+        case success: JsSuccess[PokemonModel] => {
           val pokemonModel = success.get
           println("json parsed successfuly ! Contains: " + pokemonModel)
           lastSender.tell(FetchPokemonByIdResponse(lastRequest, pokemonModel, RequestStatus.Success), self)
-        case fail : JsError =>
+          println("response sent")
+        }
+        case fail: JsError => {
+          println("uh oh")
           println("couldn't parse json retrieved from api. Error: " + JsError.toJson(fail).toString())
           lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
-        case _ => println("dunno, lol")
-      }})
+        }
+        case _ => {
+        println("dunno, lol")
+        }
+      }}).onComplete( _ => {
+      println("JSON parsing is done, bye"
+        // self ! PoisonPill
+    )})
   }
 
   def waitingForResponse : Receive = {
-    case HttpResponse(StatusCodes.OK, headers, entity, _) =>
+    case HttpResponse(StatusCodes.OK, headers, entity, _) => {
       println("Received ok response")
       onResultReceived(entity)
-      self ! PoisonPill
-    case Failure(_) =>
+    }
+    case Failure(_) => {
       println("Error while fetching entities in pokeApi :'(")
       lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
       self ! PoisonPill
-    case _ =>
+    }
+    case _ => {
       println("Dude what")
       lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
       self ! PoisonPill
+    }
   }
+
+  override def postStop(): Unit = { println("DEAD") }
+
+  override def postRestart(reason: Throwable): Unit = {println("REBORN")}
 
   override def receive: Receive = {
     case request : FetchPokemonByIdRequest =>

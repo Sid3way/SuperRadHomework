@@ -1,19 +1,20 @@
 package PokeApiRequester
 
 import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse, RequestStatus}
-import akka.actor.{Actor, ActorRef, PoisonPill, Props, Stash}
+import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.http.scaladsl.Http
+import akka.stream.{Supervision, ActorMaterializer, ActorMaterializerSettings}
+import scala.concurrent.duration._
+import akka.util.ByteString
 import akka.http.scaladsl.model._
-import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 
 import scala.concurrent.ExecutionContextExecutor
-import akka.pattern._
 import HttpMethods._
 import PokemonsDataStore.PokemonModel.PokemonModel
 import play.api.libs.json._
 
-import scala.util.{Failure, Success}
-
+import scala.util.{Success, Failure}
+import PokemonsDataStore.PokemonModel.PokemonModel.pokemonReads
 /**
   * Created by Damie on 17/05/2017.
   */
@@ -36,69 +37,55 @@ class PokeApiWorker extends Actor {
   var lastRequest = FetchPokemonByIdRequest(0)
 
   def RequestApi(request : FetchPokemonByIdRequest): Unit = {
-    println("Preparing to send request to API")
     lastSender = sender
     lastRequest = request
-    println("Changing context")
     context.become(waitingForResponse)
     val pokeApiUrl = "http://pokeapi.co/api/v2/pokemon/" + request.id + "/"
-    println("Sending request")
-    var futureResult = http.singleRequest(HttpRequest(GET, uri = pokeApiUrl))
-    println("Piping result to self")
-    futureResult pipeTo self
-    println("Done")
+    val futureResult = http.singleRequest(HttpRequest(GET, uri = pokeApiUrl)).flatMap(f => f.entity.toStrict(3.second))
+
+    futureResult onComplete {
+      case Success(result)  => self ! result
+      case Failure(failure) => println(s"ID=${lastRequest.id} Error !")
+    }
   }
 
-  def onResultReceived(entity: ResponseEntity) : Unit = {
-    entity.dataBytes.map(_.utf8String).runForeach(body => {
-      println("Received result from pokeApi: " + body)
-      val json : JsValue = Json.parse(body)
-      val pokeResult : JsResult[PokemonModel] = json.validate[PokemonModel]
-      pokeResult match {
-        case success: JsSuccess[PokemonModel] => {
-          val pokemonModel = success.get
-          println("json parsed successfuly ! Contains: " + pokemonModel)
-          lastSender.tell(FetchPokemonByIdResponse(lastRequest, pokemonModel, RequestStatus.Success), self)
-          println("response sent")
-        }
-        case fail: JsError => {
-          println("uh oh")
-          println("couldn't parse json retrieved from api. Error: " + JsError.toJson(fail).toString())
-          lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
-        }
-        case _ => {
+  def onResultReceived(dataBytes: ByteString): Unit = {
+    val body = dataBytes.decodeString(ByteString.UTF_8)
+    println("Received result from pokeApi: " + body)
+    val json: JsValue = Json.parse(body)
+    val pokeResult: JsResult[PokemonModel] = json.validate[PokemonModel]
+    pokeResult match {
+      case success: JsSuccess[PokemonModel] =>
+        val pokemonModel = success.get
+        println("json parsed successfuly ! Contains: " + pokemonModel)
+        lastSender.tell(FetchPokemonByIdResponse(lastRequest, pokemonModel, RequestStatus.Success), self)
+        self ! PoisonPill
+      case fail: JsError =>
+        println("couldn't parse json retrieved from api. Error: " + JsError.toJson(fail).toString())
+        self ! PoisonPill
+        lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+      case _ =>
         println("dunno, lol")
-        }
-      }}).onComplete( _ => {
-      println("JSON parsing is done, bye"
-        // self ! PoisonPill
-    )})
+        lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+        self ! PoisonPill
+    }
   }
 
   def waitingForResponse : Receive = {
-    case HttpResponse(StatusCodes.OK, headers, entity, _) => {
-      println("Received ok response")
-      onResultReceived(entity)
-    }
-    case Failure(_) => {
+    case HttpEntity.Strict(contentType,data) =>
+      onResultReceived(data)
+    case Failure(_) =>
       println("Error while fetching entities in pokeApi :'(")
       lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
       self ! PoisonPill
-    }
-    case _ => {
+    case _ =>
       println("Dude what")
       lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
       self ! PoisonPill
-    }
   }
-
-  override def postStop(): Unit = { println("DEAD") }
-
-  override def postRestart(reason: Throwable): Unit = {println("REBORN")}
 
   override def receive: Receive = {
     case request : FetchPokemonByIdRequest =>
       RequestApi(request)
   }
-
 }

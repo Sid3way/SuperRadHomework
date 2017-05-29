@@ -45,7 +45,11 @@ class PokeApiWorker extends Actor {
 
     futureResult onComplete {
       case Success(result)  => self ! result
-      case Failure(failure) => println(s"ID=${lastRequest.id} Error !")
+      case Failure(failure) => {
+        println(s"ID=${lastRequest.id} Error !")
+        self ! PoisonPill
+        lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+      }
     }
   }
 

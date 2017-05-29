@@ -1,7 +1,7 @@
 package PokemonsDataStore
 
 import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse, GetStatsRequest, RequestStatus}
-import PokemonsDataStore.PokemonModel.PokemonStats
+import PokemonsDataStore.PokemonModel.{PokemonStat, TypeRouter}
 import akka.actor.{Actor, ActorRef, Props, Stash}
 
 /**
@@ -16,14 +16,13 @@ class Pokedex(pokeApiClient : ActorRef) extends Actor with Stash{
       case FetchPokemonByIdResponse(_, _, RequestStatus.Success) =>
         // Spawning pokemon actor containing info retrieved from pokeApi
         pokemonsLeftToInit -= 1
-        context.actorOf(Props(new PokemonBase(response.result)), response.result.name)
-        if (pokemonsLeftToInit > 0)
-          {
-            println("Fetching next pokemon (id: " + pokemonsLeftToInit + " )")
-            pokeApiClient.tell(FetchPokemonByIdRequest(pokemonsLeftToInit), self)
+        val currentPokemonId = 722 - pokemonsLeftToInit
+        context.actorOf(Props(new PokemonBase(response.result, typeRouter)), response.result.name)
+        if (pokemonsLeftToInit > 0) {
+            println("Fetching next pokemon (id: " +  currentPokemonId + " )")
+            pokeApiClient.tell(FetchPokemonByIdRequest(currentPokemonId), self)
           }
-        else
-        {
+        else {
           println("No more pokemon to spawn !")
           unstashAll()
           context.become(receive)
@@ -35,9 +34,12 @@ class Pokedex(pokeApiClient : ActorRef) extends Actor with Stash{
   }
 
 
+  var typeRouter : ActorRef = ActorRef.noSender
+
   override def preStart(): Unit = {
     super.preStart()
-    pokeApiClient.tell(FetchPokemonByIdRequest(pokemonsLeftToInit), self)
+    typeRouter = context.actorOf(Props[TypeRouter], "typeRouter")
+    pokeApiClient.tell(FetchPokemonByIdRequest(1), self)
   }
 
   // I could have stashed request until all pokemons are up before answering but I prefer to be as reactive as possible,

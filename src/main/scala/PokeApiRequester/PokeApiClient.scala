@@ -1,9 +1,14 @@
 package PokeApiRequester
 
+import java.io.{FileReader, FileWriter}
+import java.nio.file.{Files, Paths}
+
+
 import Common.{FetchPokemonByIdRequest, FetchPokemonByIdResponse, RequestStatus}
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.http.scaladsl.Http
-import akka.stream.{Supervision, ActorMaterializer, ActorMaterializerSettings}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
+
 import scala.concurrent.duration._
 import akka.util.ByteString
 import akka.http.scaladsl.model._
@@ -13,7 +18,7 @@ import HttpMethods._
 import PokemonsDataStore.PokemonModel.PokemonModel
 import play.api.libs.json._
 
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 import PokemonsDataStore.PokemonModel.PokemonModel.pokemonReads
 /**
   * Created by Damie on 17/05/2017.
@@ -39,29 +44,42 @@ class PokeApiWorker extends Actor {
   def RequestApi(request : FetchPokemonByIdRequest): Unit = {
     lastSender = sender
     lastRequest = request
-    context.become(waitingForResponse)
-    val pokeApiUrl = "http://pokeapi.co/api/v2/pokemon/" + request.id + "/"
-    val futureResult = http.singleRequest(HttpRequest(GET, uri = pokeApiUrl)).flatMap(f => f.entity.toStrict(3.second))
+    val file = "C:\\pokemonData\\" + request.id + ".data"
+    val filePath = Paths.get(file)
+    if (Files.exists(filePath)) {
+      val body = new String(Files.readAllBytes(filePath))
+      println("Retrieved from cache : " + body)
+      ParseBody(body, true)
+    }
+    else {
+      context.become(waitingForResponse)
+      val pokeApiUrl = "http://pokeapi.co/api/v2/pokemon/" + request.id + "/"
+      val futureResult = http.singleRequest(HttpRequest(GET, uri = pokeApiUrl)).flatMap(f => f.entity.toStrict(3.second))
 
-    futureResult onComplete {
-      case Success(result)  => self ! result
-      case Failure(failure) => {
-        println(s"ID=${lastRequest.id} Error !")
-        self ! PoisonPill
-        lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+      futureResult onComplete {
+        case Success(result)  => self ! result
+        case Failure(failure) => {
+          println(s"ID=${lastRequest.id} Error !")
+          self ! PoisonPill
+          lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
+        }
       }
     }
   }
 
-  def onResultReceived(dataBytes: ByteString): Unit = {
-    val body = dataBytes.decodeString(ByteString.UTF_8)
-    println("Received result from pokeApi: " + body)
+  def ParseBody(body: String, isFromCache : Boolean): Unit = {
     val json: JsValue = Json.parse(body)
     val pokeResult: JsResult[PokemonModel] = json.validate[PokemonModel]
     pokeResult match {
       case success: JsSuccess[PokemonModel] =>
         val pokemonModel = success.get
-        println("json parsed successfuly ! Contains: " + pokemonModel)
+        if (!isFromCache)
+          {
+            val filePath = "C:\\pokemonData\\" + pokemonModel.id + ".data"
+            val fw = new FileWriter(filePath, true)
+            fw.write(json.toString())
+            fw.close()
+          }
         lastSender.tell(FetchPokemonByIdResponse(lastRequest, pokemonModel, RequestStatus.Success), self)
         self ! PoisonPill
       case fail: JsError =>
@@ -73,6 +91,12 @@ class PokeApiWorker extends Actor {
         lastSender.tell(FetchPokemonByIdResponse(lastRequest, null, RequestStatus.Error), self)
         self ! PoisonPill
     }
+  }
+
+  def onResultReceived(dataBytes: ByteString): Unit = {
+    val body = dataBytes.decodeString(ByteString.UTF_8)
+    println("Received result from pokeApi: " + body)
+    ParseBody(body, false)
   }
 
   def waitingForResponse : Receive = {
